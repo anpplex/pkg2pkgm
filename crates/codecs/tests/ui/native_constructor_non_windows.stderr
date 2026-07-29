@@ -1,0 +1,15 @@
+error[E0599]: no associated function or constant named `native` found for struct `ResourceCompilerBackend` in the current scope
+ --> tests/ui/native_constructor_non_windows.rs:4:38
+  |
+4 |     let _ = ResourceCompilerBackend::native("resourcecompiler64.exe");
+  |                                      ^^^^^^ associated function or constant not found in `ResourceCompilerBackend`
+  |
+note: if you're trying to build a new `ResourceCompilerBackend`, consider using `ResourceCompilerBackend::wine` which returns `ResourceCompilerBackend`
+ --> src/resource_compiler.rs
+  |
+  | /     pub fn wine(
+  | |         compiler: impl Into<PathBuf>,
+  | |         wine: impl Into<PathBuf>,
+  | |         winepath: impl Into<PathBuf>,
+  | |     ) -> Self {
+  | |_____________^

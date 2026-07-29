@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local oracles and proprietary assets (never commit)
+/research/
+*.mpkg
+!crates/**/fixtures/**/*.mpkg
+/tmp/
+*.apk
+*.exe
+*.dll
+wine-prefix/
+.wine/
+
+# Agent / SDD scratch (if present)
+/sdd/
+*.partial
+.pkg2mpkg-*

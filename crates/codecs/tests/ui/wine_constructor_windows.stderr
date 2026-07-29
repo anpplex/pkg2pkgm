@@ -1,0 +1,11 @@
+error[E0599]: no associated function or constant named `wine` found for struct `ResourceCompilerBackend` in the current scope
+ --> tests/ui/wine_constructor_windows.rs:4:38
+  |
+4 |     let _ = ResourceCompilerBackend::wine("resourcecompiler64.exe", "wine", "winepath");
+  |                                      ^^^^ associated function or constant not found in `ResourceCompilerBackend`
+  |
+note: if you're trying to build a new `ResourceCompilerBackend`, consider using `ResourceCompilerBackend::native` which returns `ResourceCompilerBackend`
+ --> src/resource_compiler.rs
+  |
+  |     pub fn native(compiler: impl Into<PathBuf>) -> Self {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,26 @@
+[package]
+name = "pkg2mpkg-codecs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+pkg2mpkg-core = { path = "../core" }
+same-file = "1.0.6"
+tempfile.workspace = true
+
+[target.'cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "ios", target_os = "tvos", target_os = "visionos", target_os = "watchos", target_os = "redox"))'.dependencies]
+rustix = { version = "1.1.4", features = ["fs"] }
+
+[target.'cfg(windows)'.dependencies]
+atomicwrites = "0.4.4"
+
+[dev-dependencies]
+trybuild = "1.0.116"
+
+[[bin]]
+name = "pkg2mpkg-fake-resource-compiler"
+path = "tests/support/fake_resource_compiler_helper.rs"
+test = false
+bench = false
