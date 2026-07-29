@@ -27,13 +27,50 @@
 - 确定性**写入**仅 PKGM0018/PKGM0020（导出默认 0020），输出小于 4 GiB；同目录 partial、自校验与原子持久化。
 - `export --dry-run` 输出稳定的 `ExportPlan` JSON，并列出后续执行需要的辅助程序能力。
 
-## 快速开始
+## 安装
+
+### 预编译安装包（推荐）
+
+GitHub Actions 会为每个 release 构建各平台可直接运行的二进制包：
+
+| 平台 | 架构 | 资源名模式 |
+|---|---|---|
+| Linux | x86_64 / aarch64 | `pkg2mpkg-v*-x86_64-unknown-linux-gnu.tar.gz` 等 |
+| macOS | Apple Silicon / Intel | `…-aarch64-apple-darwin.tar.gz` / `…-x86_64-apple-darwin.tar.gz` |
+| Windows | x86_64 | `…-x86_64-pc-windows-msvc.zip` |
+
+发布页：https://github.com/anpplex/pkg2pkgm/releases
+
+**macOS / Linux 一键安装（装到 `/usr/local/bin`）：**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anpplex/pkg2pkgm/main/scripts/install.sh | bash
+# 或指定版本 / 安装目录
+# VERSION=v0.1.0 INSTALL_DIR=~/.local/bin bash <(curl -fsSL …/scripts/install.sh)
+```
+
+**手动解压运行：**
+
+```bash
+# Linux / macOS
+tar -xzf pkg2mpkg-v0.1.0-<target>.tar.gz
+cd pkg2mpkg-v0.1.0-<target>
+./pkg2mpkg --help
+```
+
+```powershell
+# Windows
+Expand-Archive pkg2mpkg-v0.1.0-x86_64-pc-windows-msvc.zip
+.\pkg2mpkg-v0.1.0-x86_64-pc-windows-msvc\pkg2mpkg.exe --help
+```
+
+### 从源码构建
 
 环境要求：Rust **1.97.0**（仓库 `rust-toolchain.toml` 会自动选择）。
 
 ```bash
-cargo build --workspace
-cargo run -p pkg2mpkg -- --help
+cargo build --release -p pkg2mpkg --bin pkg2mpkg
+./target/release/pkg2mpkg --help
 ```
 
 检查 Scene 工程：

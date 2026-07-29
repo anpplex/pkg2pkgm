@@ -27,13 +27,50 @@ This release is a **phase-1 runnable foundation**, not a full converter: project
 - Deterministic **write** of PKGM0018/PKGM0020 only (export default 0020), under 4 GiB; same-dir partials, self-check, atomic publish.
 - `export --dry-run` emits a stable `ExportPlan` JSON and lists helper capabilities required for real execution.
 
-## Quick start
+## Install
+
+### Prebuilt packages (recommended)
+
+GitHub Actions publishes ready-to-run binaries for each release:
+
+| Platform | Arch | Asset pattern |
+|---|---|---|
+| Linux | x86_64 / aarch64 | `pkg2mpkg-v*-x86_64-unknown-linux-gnu.tar.gz`, etc. |
+| macOS | Apple Silicon / Intel | `…-aarch64-apple-darwin.tar.gz` / `…-x86_64-apple-darwin.tar.gz` |
+| Windows | x86_64 | `…-x86_64-pc-windows-msvc.zip` |
+
+Releases: https://github.com/anpplex/pkg2pkgm/releases
+
+**One-line install (macOS / Linux → `/usr/local/bin`):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/anpplex/pkg2pkgm/main/scripts/install.sh | bash
+# Or pin version / install dir:
+# VERSION=v0.1.0 INSTALL_DIR=~/.local/bin bash <(curl -fsSL …/scripts/install.sh)
+```
+
+**Manual extract:**
+
+```bash
+# Linux / macOS
+tar -xzf pkg2mpkg-v0.1.0-<target>.tar.gz
+cd pkg2mpkg-v0.1.0-<target>
+./pkg2mpkg --help
+```
+
+```powershell
+# Windows
+Expand-Archive pkg2mpkg-v0.1.0-x86_64-pc-windows-msvc.zip
+.\pkg2mpkg-v0.1.0-x86_64-pc-windows-msvc\pkg2mpkg.exe --help
+```
+
+### Build from source
 
 Requires Rust **1.97.0** (pinned by `rust-toolchain.toml`).
 
 ```bash
-cargo build --workspace
-cargo run -p pkg2mpkg -- --help
+cargo build --release -p pkg2mpkg --bin pkg2mpkg
+./target/release/pkg2mpkg --help
 ```
 
 Inspect a Scene project:

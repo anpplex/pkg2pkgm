@@ -1,0 +1,261 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0). Leave empty to use Cargo.toml version."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      create_tag: ${{ steps.meta.outputs.create_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version / tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          CARGO_VERSION=$(grep -E '^version' Cargo.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+            CREATE_TAG=false
+          else
+            INPUT="${{ inputs.tag }}"
+            if [[ -n "${INPUT}" ]]; then
+              TAG="${INPUT}"
+              VERSION="${TAG#v}"
+            else
+              VERSION="${CARGO_VERSION}"
+              TAG="v${VERSION}"
+            fi
+            # Create tag if it does not already exist on this commit
+            if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+              CREATE_TAG=false
+            else
+              CREATE_TAG=true
+            fi
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "create_tag=${CREATE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag=${TAG} version=${VERSION} create_tag=${CREATE_TAG}"
+
+  build:
+    name: build (${{ matrix.name }})
+    needs: plan
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - name: macos-aarch64
+            os: macos-14
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.0"
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release -p pkg2mpkg --bin pkg2mpkg --target "${{ matrix.target }}"
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.plan.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          NAME="pkg2mpkg-v${VERSION}-${TARGET}"
+          DIST="dist/${NAME}"
+          mkdir -p "${DIST}" artifacts
+
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            BIN="target/${TARGET}/release/pkg2mpkg.exe"
+            test -f "${BIN}"
+            cp "${BIN}" "${DIST}/pkg2mpkg.exe"
+          else
+            BIN="target/${TARGET}/release/pkg2mpkg"
+            test -f "${BIN}"
+            if command -v strip >/dev/null 2>&1; then
+              strip "${BIN}" || true
+            fi
+            cp "${BIN}" "${DIST}/pkg2mpkg"
+            chmod +x "${DIST}/pkg2mpkg"
+          fi
+
+          cp README.md README.en.md LICENSE "${DIST}/"
+          {
+            echo "pkg2mpkg v${VERSION} (${TARGET})"
+            echo
+            echo "Chinese docs: README.md"
+            echo "English docs: README.en.md"
+            echo
+            echo "Run:"
+            echo "  ./pkg2mpkg --help          # macOS / Linux"
+            echo "  .\\pkg2mpkg.exe --help     # Windows"
+            echo
+            echo "Optional install (Unix):"
+            echo "  sudo cp pkg2mpkg /usr/local/bin/"
+            echo "  pkg2mpkg --help"
+          } > "${DIST}/INSTALL.txt"
+
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            OUT="artifacts/${NAME}.zip"
+            # Windows runners: bsdtar can write .zip via -a; Linux/macOS use zip when present.
+            if command -v zip >/dev/null 2>&1; then
+              (cd dist && zip -r "../${OUT}" "${NAME}")
+            else
+              tar -a -cf "${OUT}" -C dist "${NAME}"
+            fi
+          else
+            OUT="artifacts/${NAME}.tar.gz"
+            tar -C dist -czf "${OUT}" "${NAME}"
+          fi
+          ls -lah artifacts/
+          test -f "${OUT}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg2mpkg-${{ matrix.name }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: publish GitHub release
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: pkg2mpkg-*
+          merge-multiple: true
+
+      - name: List assets + checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          ls -lah
+          if command -v sha256sum >/dev/null; then
+            sha256sum * > SHA256SUMS.txt
+          else
+            shasum -a 256 * > SHA256SUMS.txt
+          fi
+          cat SHA256SUMS.txt
+
+      - name: Create tag if needed
+        if: needs.plan.outputs.create_tag == 'true'
+        shell: bash
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name: pkg2mpkg ${{ needs.plan.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## pkg2mpkg ${{ needs.plan.outputs.tag }}
+
+            跨平台 Wallpaper Engine 移动包工具 / Cross-platform WE mobile package toolkit.
+
+            ### 下载安装包 / Download
+
+            | 平台 | 架构 | 文件 |
+            |---|---|---|
+            | Linux | x86_64 | `pkg2mpkg-v${{ needs.plan.outputs.version }}-x86_64-unknown-linux-gnu.tar.gz` |
+            | Linux | aarch64 | `pkg2mpkg-v${{ needs.plan.outputs.version }}-aarch64-unknown-linux-gnu.tar.gz` |
+            | macOS | Apple Silicon | `pkg2mpkg-v${{ needs.plan.outputs.version }}-aarch64-apple-darwin.tar.gz` |
+            | macOS | Intel | `pkg2mpkg-v${{ needs.plan.outputs.version }}-x86_64-apple-darwin.tar.gz` |
+            | Windows | x86_64 | `pkg2mpkg-v${{ needs.plan.outputs.version }}-x86_64-pc-windows-msvc.zip` |
+
+            校验和见 `SHA256SUMS.txt`。
+
+            ### 快速使用 / Quick start
+
+            ```bash
+            # Linux / macOS
+            tar -xzf pkg2mpkg-v${{ needs.plan.outputs.version }}-<target>.tar.gz
+            cd pkg2mpkg-v${{ needs.plan.outputs.version }}-<target>
+            ./pkg2mpkg --help
+            # 可选安装
+            sudo cp pkg2mpkg /usr/local/bin/
+            ```
+
+            ```powershell
+            # Windows
+            Expand-Archive pkg2mpkg-v${{ needs.plan.outputs.version }}-x86_64-pc-windows-msvc.zip
+            .\pkg2mpkg-v${{ needs.plan.outputs.version }}-x86_64-pc-windows-msvc\pkg2mpkg.exe --help
+            ```
+
+            > 动态 Scene 真实导出仍需本机 Wallpaper Engine 2.8.26 运行时（非 Windows 还需 Wine）。
+            > Real dynamic Scene export still needs a local WE 2.8.26 runtime (Wine on non-Windows).
+          files: |
+            release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
