@@ -10,7 +10,7 @@ use std::{
 };
 
 const TEX_V5: &[u8] = b"TEXV0005\0converted";
-const WAIT_TIMEOUT: Duration = Duration::from_secs(15);
+const WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 const ARGV_MAGIC: &[u8] = b"ARGV0001";
 
 #[cfg(unix)]

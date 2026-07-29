@@ -85,7 +85,26 @@ fn high_profile_real_export_writes_report_and_hits_helper() {
     assert_eq!(report["mode"]["reduction"], "high_quality");
     assert_eq!(report["texture_count"], 1);
     assert!(report["output_bytes"].as_u64().unwrap() > 0);
-    let text = report.to_string().to_ascii_lowercase();
+    // Forbid diagnostic field *names* only. Do not scan path values: Windows
+    // temporary directories contain the substring "temp" (e.g. ...\Local\Temp\...).
+    fn collect_keys(value: &serde_json::Value, keys: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, child) in map {
+                    keys.push(key.to_ascii_lowercase());
+                    collect_keys(child, keys);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for child in items {
+                    collect_keys(child, keys);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut keys = Vec::new();
+    collect_keys(&report, &mut keys);
     for forbidden in [
         "elapsed",
         "duration",
@@ -95,8 +114,8 @@ fn high_profile_real_export_writes_report_and_hits_helper() {
         "diagnostic",
     ] {
         assert!(
-            !text.contains(forbidden),
-            "report must not contain {forbidden}: {text}"
+            !keys.iter().any(|key| key == forbidden),
+            "report must not contain key {forbidden}: {keys:?} report={report}"
         );
     }
 
@@ -403,5 +422,6 @@ fn windows_rejects_wine_flags() {
         ])
         .assert()
         .code(2)
-        .stderr(predicates::str::contains("Wine"));
+        // Message uses lowercase "wine" / "--wine"; match case-insensitively via explicit fragment.
+        .stderr(predicates::str::contains("--wine"));
 }

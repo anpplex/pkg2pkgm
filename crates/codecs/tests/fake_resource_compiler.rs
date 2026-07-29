@@ -20,7 +20,9 @@ use std::os::unix::ffi::OsStringExt;
 use std::os::windows::ffi::OsStringExt;
 
 const COMPILED_HELPER: &str = env!("CARGO_BIN_EXE_pkg2mpkg-fake-resource-compiler");
-const WAIT_TIMEOUT: Duration = Duration::from_secs(15);
+// CI runners can be under heavy parallel test load; give the fake helper more
+// time to spawn and write its started-signal file before the parent asserts.
+const WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
 fn sidecar(path: &Path, suffix: &str) -> PathBuf {
     let mut path = path.as_os_str().to_owned();

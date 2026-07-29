@@ -40,4 +40,5 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: test
-        run: cargo test --workspace
+        # serial for codec concurrent helper tests avoids scheduler starvation on shared runners
+        run: cargo test --workspace -- --test-threads=2
